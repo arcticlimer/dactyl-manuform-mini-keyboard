@@ -23,7 +23,7 @@
 (def column-style
   (if (> nrows 5) :orthographic :standard))  ; options include :standard, :orthographic, and :fixed
 ; (def column-style :fixed)
-(def pinky-15u true)
+(def pinky-15u false)
 
 (defn column-offset [column] (cond
                                (= column 2) [0 2.82 -4.5]
@@ -32,7 +32,7 @@
 
 (def thumb-offsets [6 -3 7])
 
-(def keyboard-z-offset 9)               ; controls overall height; original=9 with centercol=3; use 16 for centercol=2
+(def keyboard-z-offset 11)               ; controls overall height; original=9 with centercol=3; use 16 for centercol=2
 
 (def extra-width 2.5)                   ; extra space between the base of keys; original= 2
 (def extra-height 1.0)                  ; original= 0.5
@@ -609,6 +609,15 @@
         (translate [(first pro-micro-position) (second pro-micro-position) (last pro-micro-position)]))
    pro-micro-space))
 
+(def rj9-start  (map + [0 -3  0] (key-position 0 0 (map + (wall-locate3 0 1) [0 (/ mount-height  2) 0]))))
+(def rj9-position  [(first rj9-start) (second rj9-start) 11])
+(def rj9-cube   (cube 14.78 13 22.38))
+(def rj9-space  (translate rj9-position rj9-cube))
+(def rj9-holder (translate rj9-position
+                  (difference rj9-cube
+                              (union (translate [0 2 0] (cube 10.78  9 18.38))
+                                     (translate [0 0 5] (cube 10.78 13  5))))))
+
 (def trrs-holder-size [6.2 10 2]) ; trrs jack PJ-320A
 (def trrs-holder-hole-size [6.2 10 6]) ; trrs jack PJ-320A
 (def trrs-holder-position  (map + usb-holder-position [-13.6 0 0]))
@@ -669,6 +678,55 @@
 (def screw-insert-outers (screw-insert-all-shapes (+ screw-insert-bottom-radius 1.65) (+ screw-insert-top-radius 1.65) (+ screw-insert-height 1.5)))
 (def screw-insert-screw-holes  (screw-insert-all-shapes 1.7 1.7 350))
 
+; TODO: Dependending on this variable change the .scad file connector type
+(def keyboard-connector-type :rj9) ; :trrs
+
+(def usb-holder-position (key-position 1 0 (map + (wall-locate2 0 1) [0 (/ mount-height 2) 0])))
+(def usb-holder-size [6.5 10.0 13.6])
+(def usb-holder-thickness 4)
+(def usb-holder
+    (->> (cube (+ (first usb-holder-size) usb-holder-thickness) (second usb-holder-size) (+ (last usb-holder-size) usb-holder-thickness))
+         (translate [(first usb-holder-position) (second usb-holder-position) (/ (+ (last usb-holder-size) usb-holder-thickness) 2)])))
+(def usb-holder-hole
+    (->> (apply cube usb-holder-size)
+         (translate [(first usb-holder-position) (second usb-holder-position) (/ (+ (last usb-holder-size) usb-holder-thickness) 2)])))
+
+
+(def teensy-width 18)
+(def teensy-height 12)
+(def teensy-length 33)
+(def teensy2-length 53)
+(def teensy-pcb-thickness 2)
+(def teensy-holder-width  (+ 7 teensy-pcb-thickness))
+(def teensy-holder-height (+ 6 teensy-width))
+(def teensy-offset-height 5)
+(def teensy-holder-top-length 18)
+(def teensy-top-xy (key-position 0 (- centerrow 1) (wall-locate3 -1 0)))
+(def teensy-bot-xy (key-position 0 (+ centerrow 1) (wall-locate3 -1 0)))
+(def teensy-holder-length (- (second teensy-top-xy) (second teensy-bot-xy)))
+(def teensy-holder-offset (/ teensy-holder-length -2))
+(def teensy-holder-top-offset (- (/ teensy-holder-top-length 2) teensy-holder-length))
+
+(def teensy-holder
+    (->>
+        (union
+          (->> (cube 3 teensy-holder-length (+ 6 teensy-width))
+               (translate [1.5 teensy-holder-offset 0]))
+          (->> (cube teensy-pcb-thickness teensy-holder-length 3)
+               (translate [(+ (/ teensy-pcb-thickness 2) 3) teensy-holder-offset (- -1.5 (/ teensy-width 2))]))
+          (->> (cube 4 teensy-holder-length 4)
+               (translate [(+ teensy-pcb-thickness 5) teensy-holder-offset (-  -1 (/ teensy-width 2))]))
+          (->> (cube teensy-pcb-thickness teensy-holder-top-length 3)
+               (translate [(+ (/ teensy-pcb-thickness 2) 3) teensy-holder-top-offset (+ 1.5 (/ teensy-width 2))]))
+          (->> (cube 4 teensy-holder-top-length 4)
+               (translate [(+ teensy-pcb-thickness 5) teensy-holder-top-offset (+ 1 (/ teensy-width 2))])))
+        (translate [(- teensy-holder-width) 0 0])
+        (translate [-1.4 0 0])
+        (translate [(first teensy-top-xy)
+                    (- (second teensy-top-xy) 1)
+                    (/ (+ 6 teensy-width) 2)])
+           ))
+
 (def pinky-connectors
   (apply union
          (concat
@@ -705,14 +763,34 @@
                    thumb-connectors
                    (difference (union case-walls
                                       screw-insert-outers
-                                      pro-micro-holder
-                                      usb-holder-holder
-                                      trrs-holder)
-                               usb-holder-space
-                               usb-jack
-                               trrs-holder-hole
-                               screw-insert-holes))
+                                      ; TODO: Turn some changes made into boolean flags
+                                      ; or enums (:atoms)
+
+                                      ; pro-micro-holder
+                                      ; usb-holder-holder
+                                      teensy-holder
+                                      usb-holder
+                                      ; caps
+                                      ; thumbcaps
+                                      ; trrs-holder
+                                      )
+                               rj9-space
+                               usb-holder-hole
+                               ; usb-holder-space
+                               ; usb-jack
+
+                               ; trrs-holder-hole
+                               screw-insert-holes)
+                   rj9-holder
+                  )
                   (translate [0 0 -20] (cube 350 350 40))))
+
+(def plate-right (cut
+        (translate [0 0 -0.1]
+                   (difference (union case-walls
+                                      pinky-walls
+                                      screw-insert-outers)
+                               (translate [0 0 -10] screw-insert-screw-holes)))))
 
 (spit "things/right.scad"
       (write-scad model-right))
@@ -736,14 +814,11 @@
 
         (translate [0 0 -20] (cube 350 350 40)))))
 
+(spit "things/left-plate.scad"
+      (write-scad (mirror [-1 0 0] plate-right)))
+
 (spit "things/right-plate.scad"
-      (write-scad
-       (cut
-        (translate [0 0 -0.1]
-                   (difference (union case-walls
-                                      pinky-walls
-                                      screw-insert-outers)
-                               (translate [0 0 -10] screw-insert-screw-holes))))))
+      (write-scad plate-right))
 
 (spit "things/test.scad"
       (write-scad
