@@ -32,7 +32,7 @@
 
 (def thumb-offsets [6 -3 7])
 
-(def keyboard-z-offset 11)               ; controls overall height; original=9 with centercol=3; use 16 for centercol=2
+(def keyboard-z-offset 10)               ; controls overall height; original=9 with centercol=3; use 16 for centercol=2
 
 (def extra-width 2.5)                   ; extra space between the base of keys; original= 2
 (def extra-height 1.0)                  ; original= 0.5
@@ -596,6 +596,14 @@
 
 (def usb-jack (translate (map + usb-holder-position [0 10 3]) (cube 8.1 20 3.1)))
 
+
+(def reset-button-ref (key-position 0 0 (map - (wall-locate2  0  -1) [0 (/ mount-height 2) 0])))
+(def reset-button-position (map + [17 19.3 0] [(first reset-button-ref) (second reset-button-ref) 2]))
+
+(def reset-button (->> (binding [*fn* 30] (cylinder 1.00 20)) ; 5mm trrs jack (5mm is 2.55 in the first parameter)
+                    (rotate (deg2rad  90) [1 0 0])
+                    (translate (map + reset-button-position [7 12 19]))))
+
 (def pro-micro-position (map + (key-position 0 1 (wall-locate3 -1 0)) [-6 2 -15]))
 (def pro-micro-space-size [4 10 12]) ; z has no wall;
 (def pro-micro-wall-thickness 2)
@@ -658,13 +666,15 @@
          (translate (map + offset [(first position) (second position) (/ height 2)])))))
 
 (defn screw-insert-all-shapes [bottom-radius top-radius height]
-  (union (screw-insert 0 0         bottom-radius top-radius height [11 10 0])
-         (screw-insert 0 lastrow   bottom-radius top-radius height [0 0 0])
+  (union (screw-insert 0 0         bottom-radius top-radius height [1 0 0])
+         (screw-insert 0 (- lastrow 0.6)   bottom-radius top-radius height [0 0 0])
         ;  (screw-insert lastcol lastrow  bottom-radius top-radius height [-5 13 0])
         ;  (screw-insert lastcol 0         bottom-radius top-radius height [-3 6 0])
          (screw-insert lastcol lastrow  bottom-radius top-radius height [0 12 0])
+
          (screw-insert lastcol 0         bottom-radius top-radius height [0 7 0])
-         (screw-insert 1 lastrow         bottom-radius top-radius height [0 -16 0])))
+
+         (screw-insert 1 lastrow         bottom-radius top-radius height [2 -19 0])))
 
 ; Hole Depth Y: 4.4
 (def screw-insert-height 4)
@@ -766,9 +776,9 @@
                                       ; TODO: Turn some changes made into boolean flags
                                       ; or enums (:atoms)
 
-                                      ; pro-micro-holder
+                                      pro-micro-holder
                                       ; usb-holder-holder
-                                      teensy-holder
+                                      ; teensy-holder
                                       usb-holder
                                       ; caps
                                       ; thumbcaps
@@ -776,11 +786,13 @@
                                       )
                                rj9-space
                                usb-holder-hole
+                               reset-button
                                ; usb-holder-space
                                ; usb-jack
 
                                ; trrs-holder-hole
-                               screw-insert-holes)
+                               screw-insert-holes
+                               )
                    rj9-holder
                   )
                   (translate [0 0 -20] (cube 350 350 40))))
