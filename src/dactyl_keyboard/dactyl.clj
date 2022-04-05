@@ -83,7 +83,7 @@
   (let [top-wall (->> (cube (+ keyswitch-width 3) 1.5 plate-thickness)
                       (translate [0
                                   (+ (/ 1.5 2) (/ keyswitch-height 2))
-                                  (/ plate-thickness 2)]))
+                                  (/ plate-thickness 2) 0.25]))
         left-wall (->> (cube 1.5 (+ keyswitch-height 3) plate-thickness)
                        (translate [(+ (/ 1.5 2) (/ keyswitch-width 2))
                                    0
@@ -600,7 +600,8 @@
 (def reset-button-ref (key-position 0 0 (map - (wall-locate2  0  -1) [0 (/ mount-height 2) 0])))
 (def reset-button-position (map + [17 19.3 0] [(first reset-button-ref) (second reset-button-ref) 2]))
 
-(def reset-button (->> (binding [*fn* 30] (cylinder 1.00 20)) ; 5mm trrs jack (5mm is 2.55 in the first parameter)
+; TODO: Find right size for the reset button hole
+(def reset-button (->> (binding [*fn* 30] (cylinder 1.5 20)) ; 5mm trrs jack (5mm is 2.55 in the first parameter)
                     (rotate (deg2rad  90) [1 0 0])
                     (translate (map + reset-button-position [7 12 19]))))
 
@@ -797,43 +798,163 @@
                   )
                   (translate [0 0 -20] (cube 350 350 40))))
 
-(def plate-right (cut
-        (translate [0 0 -0.1]
-                   (difference (union case-walls
-                                      pinky-walls
-                                      screw-insert-outers)
-                               (translate [0 0 -10] screw-insert-screw-holes)))))
+; (def plate-right (cut
+;         (translate [0 0 -0.1]
+;                    (difference (union case-walls
+;                                       pinky-walls
+;                                       screw-insert-outers)
+;                                (translate [0 0 -10] screw-insert-screw-holes)))))
 
-(spit "things/right.scad"
-      (write-scad model-right))
+(spit "things/right.scad" (write-scad model-right))
 
 (spit "things/left.scad"
       (write-scad (mirror [-1 0 0] model-right)))
 
-(spit "things/right-test.scad"
-      (write-scad
-       (difference
-        (union
-         key-holes
-         pinky-connectors
-         pinky-walls
-         connectors
-         thumb
-         thumb-connectors
-         case-walls
-         thumbcaps
-         caps)
+; (spit "things/right-test.scad"
+;       (write-scad
+;        (difference
+;         (union
+;          key-holes
+;          pinky-connectors
+;          pinky-walls
+;          connectors
+;          thumb
+;          thumb-connectors
+;          case-walls
+;          thumbcaps
+;          caps)
 
-        (translate [0 0 -20] (cube 350 350 40)))))
+;         (translate [0 0 -20] (cube 350 350 40)))))
 
-(spit "things/left-plate.scad"
-      (write-scad (mirror [-1 0 0] plate-right)))
+; (spit "things/right-plate.scad"
+;       (write-scad plate-right))
 
-(spit "things/right-plate.scad"
-      (write-scad plate-right))
+;; Fill the keyholes instead of placing a a keycap over them
+(def keyhole-fill (->> (cube keyswitch-height keyswitch-width plate-thickness)
+                       (translate [0 0 (/ plate-thickness 2)])))
 
-(spit "things/test.scad"
-      (write-scad
-       (difference trrs-holder trrs-holder-hole)))
+(def inner-column false)
+(def extra-row false)
+
+(def innercol-offset (if inner-column 1 0))
+
+(def innercol-offset (if inner-column 1 0))
+(def caps-fill
+  (apply union
+         (conj (for [column columns
+               row rows
+               :when (or (.contains [(+ innercol-offset 2) (+ innercol-offset 3)] column)
+                         (and (.contains [(+ innercol-offset 4) (+ innercol-offset 5)] column) extra-row (= ncols (+ innercol-offset 6)))
+                         (and (.contains [(+ innercol-offset 4)] column) extra-row (= ncols (+ innercol-offset 5)))
+                         (and inner-column (not= row cornerrow)(= column 0))
+                         (not= row lastrow))]
+                 (key-place column row keyhole-fill))
+               (list (key-place 0 0 keyhole-fill)
+                 (key-place 0 1 keyhole-fill)
+                 (key-place 0 2 keyhole-fill)))))
+
+(def thumbcaps-fill
+  (union
+   (thumb-1x-layout keyhole-fill)
+   (thumb-15x-layout (rotate (/ π 2) [0 0 1] keyhole-fill))))
+
+;placement for the innermost column
+(def innerrows (range 0 (- nrows 2)))
+(def key-holes-inner
+    (apply union
+           (for [row innerrows]
+             (->> single-plate
+                  ;               (rotate (/ π 2) [0 0 1])
+                  (key-place 0 row)))))
+
+(def innercolumn 0)
+(def inner-connectors
+  (if inner-column
+    (apply union
+           (concat
+            ;; Row connections
+            (for [column (range 0 1)
+                  row (range 0 (- nrows 2))]
+              (triangle-hulls
+               (key-place (inc column) row web-post-tl)
+               (key-place column row web-post-tr)
+               (key-place (inc column) row web-post-bl)
+               (key-place column row web-post-br)))
+
+            ;; Column connections
+            (for [row (range 0 (dec cornerrow))]
+              (triangle-hulls
+               (key-place innercolumn row web-post-bl)
+               (key-place innercolumn row web-post-br)
+               (key-place innercolumn (inc row) web-post-tl)
+               (key-place innercolumn (inc row) web-post-tr)))
+
+            ;; Diagonal connections
+            (for [column (range 0 (dec ncols))
+                  row (range 0 2)]
+              (triangle-hulls
+               (key-place column row web-post-br)
+               (key-place column (inc row) web-post-tr)
+               (key-place (inc column) row web-post-bl)
+               (key-place (inc column) (inc row) web-post-tl)))))))
+
+(def extra-connectors
+  (if extra-row
+    (apply union
+           (concat
+            (for [column (range 3 ncols)
+                  row (range cornerrow lastrow)]
+              (triangle-hulls
+               (key-place column row web-post-bl)
+               (key-place column row web-post-br)
+               (key-place column (inc row) web-post-tl)
+               (key-place column (inc row) web-post-tr)))
+
+            (for [column (range 3 (dec ncols))
+                  row (range cornerrow lastrow)]
+              (triangle-hulls
+               (key-place column row web-post-br)
+               (key-place column (inc row) web-post-tr)
+               (key-place (inc column) row web-post-bl)
+               (key-place (inc column) (inc row) web-post-tl)))
+
+            (for [column (range 4 (dec ncols))
+                  row (range lastrow nrows)]
+              (triangle-hulls
+               (key-place (inc column) row web-post-tl)
+               (key-place column row web-post-tr)
+               (key-place (inc column) row web-post-bl)
+               (key-place column row web-post-br)))))))
+
+
+(def plate-right (extrude-linear
+          {:height 2.6 :center false}
+          (project
+            (difference
+              (union
+                key-holes
+                key-holes-inner
+                pinky-connectors
+                ; extra-connectors
+                connectors
+                ; inner-connectors
+                thumb
+                thumb-connectors
+                case-walls
+                thumbcaps-fill
+                caps-fill
+                screw-insert-outers
+                usb-holder
+                rj9-space
+                )
+              (translate [0 0 -10] screw-insert-screw-holes)))))
+
+
+(spit "things/right-plate.scad" (write-scad plate-right))
+(spit "things/left-plate.scad" (write-scad (mirror [-1 0 0] plate-right)))
+
+; (spit "things/test.scad"
+;       (write-scad
+;        (difference trrs-holder trrs-holder-hole)))
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch
